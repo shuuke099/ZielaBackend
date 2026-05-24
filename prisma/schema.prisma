@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(uuid())
+
+  email    String @unique
+  password String
+
+  firstName String
+  lastName  String
+
+  avatarUrl   String?
+  phoneNumber String?
+
+  role     Role       @default(BUYER)
+  status   UserStatus @default(ACTIVE)
+  verified Boolean    @default(false)
+
+  flagCount Int? @default(0)
+
+  companyName String?
+  logoUrl     String?
+
+  region String?
+  rating Float?  @default(0)
+
+  lastActive DateTime?
+
+  productsCount Int? @default(0)
+
+  location Json?
+  audit    Json?
+
+  // 🔥 relations
+  products Product[]
+  reviews  Review[]
+  orders   Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  BUYER
+  SELLER
+  REGIONAL_ADMIN
+  MANAGER
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ProductType {
+  PRODUCT
+  CAR
+  HOME
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum WorkflowStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW
+  OUT_OF_STOCK
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  MODEL_3D
+}
+
+enum ReviewStatus {
+  VISIBLE
+  HIDDEN
+  FLAGGED
+}
+
+enum CurrencyCode {
+  USD
+  EUR
+  GBP
+  KES
+  SOS
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String
+  slug String @unique
+
+  parentId String?
+  parent   Category?  @relation("CategoryToParent", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryToParent")
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id   String @id @default(uuid())
+  slug String @unique
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  type   ProductType
+  status ProductStatus
+
+  region String?
+
+  // pricing
+  price    Float
+  currency CurrencyCode
+
+  // workflow
+  workflowStatus WorkflowStatus @default(DRAFT)
+
+  // relations
+  translations ProductTranslation[]
+  media        ProductMedia[]
+  inventory    ProductInventory?
+  analytics    ProductAnalytics?
+  marketing    ProductMarketing?
+  shipping     ProductShipping?
+  seo          ProductSEO?
+
+  reviews    Review[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId])
+  @@index([categoryId])
+}
+
+model ProductTranslation {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  language    String
+  name        String
+  description String
+
+  @@unique([productId, language])
+}
+
+model ProductMedia {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  url       String
+  type      MediaType
+  isPrimary Boolean   @default(false)
+}
+
+model ProductInventory {
+  id        String  @id @default(uuid())
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity    Int
+  sku         String
+  stockStatus StockStatus
+}
+
+model ProductAnalytics {
+  id        String  @id @default(uuid())
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  views         Int @default(0)
+  inquiries     Int @default(0)
+  sales         Int @default(0)
+  wishlistCount Int @default(0)
+  cartAdds      Int @default(0)
+}
+
+model ProductMarketing {
+  id        String  @id @default(uuid())
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  discount  Float?
+  promotion String?
+  featured  Boolean @default(false)
+
+  startDate DateTime?
+  endDate   DateTime?
+}
+
+model ProductShipping {
+  id        String  @id @default(uuid())
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  weight       Float?
+  weightUnit   String?
+  deliveryInfo String?
+  returnPolicy String?
+
+  dimensions ProductDimensions?
+}
+
+model ProductDimensions {
+  id         String          @id @default(uuid())
+  shippingId String          @unique
+  shipping   ProductShipping @relation(fields: [shippingId], references: [id])
+
+  width  Float
+  height Float
+  depth  Float
+  unit   String
+}
+
+model ProductSEO {
+  id        String  @id @default(uuid())
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  title       String
+  description String
+  keywords    String[]
+}
+
+model Review {
+  id String @id @default(uuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  rating  Int
+  comment String
+
+  status ReviewStatus @default(VISIBLE)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([userId])
+}
+
+// =========================
+// 🧾 ORDER
+// =========================
+model Order {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  totalAmount Float
+  status      OrderStatus
+
+  region String?
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// =========================
+// 📦 ORDER ITEM
+// =========================
+model OrderItem {
+  id String @id @default(uuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int
+  price    Float
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// =========================
+// 📊 ORDER STATUS
+// =========================
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// =========================
+// ⚙️ SETTINGS (GLOBAL)
+// =========================
+model Settings {
+  id String @id @default(uuid())
+
+  siteName String?
+  currency CurrencyCode?
+  region   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
